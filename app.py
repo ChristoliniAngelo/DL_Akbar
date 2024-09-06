@@ -6,6 +6,12 @@ import threading
 import sys
 from tkinter import Tk, Label, Button, StringVar, OptionMenu
 
+# Cek versi library
+print(f"Versi OpenCV: {cv2.__version__}")
+print(f"Versi NumPy: {np.__version__}")
+print(f"Versi TensorFlow: {tf.__version__}")
+print(f"Versi Python: {sys.version}")
+
 # Fungsi untuk memproses frame dari webcam
 def preprocess_image(frame, input_size=(224, 224)):
     img_resized = cv2.resize(frame, input_size)  # Ubah ukuran sesuai input model
@@ -15,18 +21,34 @@ def preprocess_image(frame, input_size=(224, 224)):
     return img_array
 
 # Fungsi untuk memetakan prediksi ke label dengan nilai akurasi
-def classify_tomato(prediction):
-    labels = ['matang', 'belum matang']  #label
+def classify_tomato(prediction, threshold=0.6):
+    labels = ['belum matang', 'matang']  # Label yang digunakan
     predicted_index = np.argmax(prediction)
     predicted_label = labels[predicted_index]
-    confidence = prediction[0][predicted_index]  # Ambil nilai probabilitas
+    confidence = prediction[0][predicted_index]  # Ambil nilai probabilitas untuk label yang diprediksi
+    
+    # Jika confidence di bawah threshold, hasil dianggap tidak pasti
+    if confidence < threshold:
+        predicted_label = 'Tidak Yakin'
+    
     return predicted_label, confidence
 
 # Fungsi untuk menangani prediksi secara real-time
-def predict_frame(model, frame, prediction_queue):
+def predict_frame(model, frame, prediction_queue, history, stable_count=5):
     preprocessed_img = preprocess_image(frame)
     prediction = model.predict(preprocessed_img)
-    prediction_queue.append(classify_tomato(prediction))
+    predicted_label, confidence = classify_tomato(prediction)
+
+    # Tambahkan ke history untuk stabilisasi hasil
+    history.append(predicted_label)
+    
+    # Hanya hasilkan prediksi stabil setelah beberapa prediksi berturut-turut
+    if len(history) > stable_count:
+        history.pop(0)  # Buang prediksi terlama
+        if all(h == predicted_label for h in history):
+            prediction_queue.append((predicted_label, confidence))
+        else:
+            prediction_queue.append(('Tidak Stabil', 0.0))
 
 # Fungsi untuk menampilkan FPS
 def display_fps(start_time):
@@ -46,6 +68,7 @@ def start_classification(webcam_index):
         return
 
     prediction_queue = []
+    history = []  # Untuk menyimpan prediksi sebelumnya
     thread = None
 
     while True:
@@ -57,19 +80,19 @@ def start_classification(webcam_index):
 
         # Mulai thread prediksi
         if thread is None or not thread.is_alive():
-            thread = threading.Thread(target=predict_frame, args=(model, frame, prediction_queue))
+            thread = threading.Thread(target=predict_frame, args=(model, frame, prediction_queue, history))
             thread.start()
 
         # Tampilkan prediksi jika ada
         if prediction_queue:
             label, confidence = prediction_queue.pop(0)
         else:
-            label = "Mengklasifikasi..."
+            label = "Tidak Ada Tomat"
             confidence = 0.0
 
-        # Gambar kotak di sekitar tomat
+        # Gambar kotak di sekitar area tomat
         height, width, _ = frame.shape
-        box_color = (0, 255, 0) if label == "Matang" else (0, 0, 255)
+        box_color = (0, 255, 0) if label == "matang" else (0, 0, 255)
         cv2.rectangle(frame, (50, 50), (width-50, height-50), box_color, 2)
 
         # Tampilkan prediksi dan akurasi di frame
@@ -92,7 +115,7 @@ def start_classification(webcam_index):
     # Tutup kamera dan jendela
     cap.release()
     cv2.destroyAllWindows()
-    sys.exit(0)  # Terminate the process
+    sys.exit(0)  # Akhiri proses
 
 # Fungsi untuk memulai klasifikasi setelah memilih webcam dari UI
 def start_ui():
@@ -128,7 +151,7 @@ def start_ui():
     option_menu.pack(pady=5)
 
     # Tombol untuk memulai klasifikasi
-    start_button = Button(root, text="Mulai Klasqifikasi", command=lambda: [root.destroy(), start_classification(webcam_var.get())], width=20)
+    start_button = Button(root, text="Mulai Klasifikasi", command=lambda: [root.destroy(), start_classification(webcam_var.get())], width=20)
     start_button.pack(pady=10)
 
     root.mainloop()
