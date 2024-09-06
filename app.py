@@ -16,7 +16,7 @@ def preprocess_image(frame, input_size=(224, 224)):
 
 # Fungsi untuk memetakan prediksi ke label dengan nilai akurasi
 def classify_tomato(prediction):
-    labels = ['Matang', 'Belum Matang']  # Sesuaikan label dengan model kamu
+    labels = ['matang', 'belum matang']  #label
     predicted_index = np.argmax(prediction)
     predicted_label = labels[predicted_index]
     confidence = prediction[0][predicted_index]  # Ambil nilai probabilitas
@@ -128,7 +128,7 @@ def start_ui():
     option_menu.pack(pady=5)
 
     # Tombol untuk memulai klasifikasi
-    start_button = Button(root, text="Mulai Klasifikasi", command=lambda: [root.destroy(), start_classification(webcam_var.get())], width=20)
+    start_button = Button(root, text="Mulai Klasqifikasi", command=lambda: [root.destroy(), start_classification(webcam_var.get())], width=20)
     start_button.pack(pady=10)
 
     root.mainloop()
